@@ -20,7 +20,8 @@ jobs:
           unzip -q Godot_v${GODOT_VERSION}_linux.x86_64.zip -d /tmp/godot
           sudo install /tmp/godot/Godot_v${GODOT_VERSION}_linux.x86_64 /usr/local/bin/godot
           wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz
-          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}
+          TEMPLATE_VERSION=${GODOT_VERSION/-/.}
+          mkdir -p ~/.local/share/godot/export_templates/${TEMPLATE_VERSION}
           unzip -q Godot_v${GODOT_VERSION}_export_templates.tpz -d /tmp/templates
           cp -R /tmp/templates/templates/. ~/.local/share/godot/export_templates/${GODOT_VERSION}/
       - uses: actions/setup-java@v5

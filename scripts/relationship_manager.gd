@@ -6,7 +6,7 @@ func _ready() -> void:
 func compliment(id: String, style: String) -> Dictionary:
 	var p: Dictionary = people.get(id, {})
 	var likes: Array = p.get("likes", [])
-	var base := {"subtle": 4, "normal": 7, "grand": 9}.get(style, 4)
+	var base: int = int({"subtle": 4, "normal": 7, "grand": 9}.get(style, 4))
 	var key := id + ":" + style
 	var count := int(GameState.fatigue.get(key, 0))
 	var factor := maxf(0.2, 1.0 - count * 0.22)

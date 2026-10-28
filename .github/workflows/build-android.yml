@@ -29,7 +29,8 @@ jobs:
           java-version: '17'
       - name: Install Android SDK packages and signing key
         run: |
-          sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0' 'cmdline-tools;latest'
+          SDKMANAGER="$(find "$ANDROID_HOME" -type f -name sdkmanager 2>/dev/null | head -1)"
+          if [ -n "$SDKMANAGER" ]; then "$SDKMANAGER" 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0' 'cmdline-tools;latest'; else echo "No sdkmanager found; using runner-preinstalled Android SDK packages"; find "$ANDROID_HOME" -maxdepth 3 -type d | head -30; fi
           keytool -genkeypair -v -keystore "$RUNNER_TEMP/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
       - name: Validate data and load project headlessly
         run: |

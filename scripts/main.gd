@@ -10,11 +10,13 @@ var event_pending := false
 var current_event := ""
 var current_person := "principal"
 var joy := Vector2.ZERO
+var elapsed := 0.0
+var npc_models: Array[Node3D] = []
 var touch_directions := {"left": false, "right": false, "up": false, "down": false}
 var people := [
 	{"name":"دکتر صادقی", "id":"principal", "pos":Vector3(17,0,7), "color":Color("8f5576")},
 	{"name":"خانم رضوی", "id":"deputy", "pos":Vector3(12,0,7), "color":Color("406b8e")},
-	{"name":"استاد کیانی", "id":"painting", "pos":Vector3(-7,0,-7), "color":Color("a94d4d")},
+	{"name":"استاد کیانی", "id":"painting", "pos":Vector3(-5,0,-4.6), "color":Color("a94d4d")}, 
 	{"name":"استاد حمیدی", "id":"ceramics", "pos":Vector3(-17,0,1), "color":Color("d1a456")},
 	{"name":"خانم نوری", "id":"math", "pos":Vector3(4,0,-9), "color":Color("597e9e")},
 	{"name":"آقا رحیم", "id":"guard", "pos":Vector3(21,0,8), "color":Color("866d4b")},
@@ -122,23 +124,141 @@ func _add_npc(person: Dictionary) -> void:
 	root.name = str(person.id)
 	root.position = person.pos
 	add_child(root)
-	var body := MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.36
-	capsule.height = 1.55
-	body.mesh = capsule
-	body.position.y = 0.92
-	body.material_override = _material(person.color)
-	root.add_child(body)
-	var head := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.28
-	sphere.height = 0.56
-	head.mesh = sphere
-	head.position.y = 1.9
-	head.material_override = _material(Color("e5bd99"))
-	root.add_child(head)
+	var look := _character_look(str(person.id), person.color)
+	_make_character(root, look)
 	_add_billboard_name(root, str(person.name))
+	npc_models.append(root)
+
+func _character_look(id: String, default_coat: Color) -> Dictionary:
+	var palette := {
+		"principal":{"hair":Color("55463e"),"pants":Color("343e4a"),"accent":Color("d6b45f"),"hair_style":"silver","prop":"portfolio"},
+		"deputy":{"hair":Color("26252b"),"pants":Color("343f50"),"accent":Color("e0c88e"),"hair_style":"scarf","prop":"clipboard"},
+		"painting":{"hair":Color("453529"),"pants":Color("343038"),"accent":Color("e1aa67"),"hair_style":"artist","prop":"brush"},
+		"ceramics":{"hair":Color("847266"),"pants":Color("55574e"),"accent":Color("79a69a"),"hair_style":"soft","prop":"mug"},
+		"math":{"hair":Color("332c2a"),"pants":Color("3e4b5a"),"accent":Color("bd8064"),"hair_style":"scarf","prop":"book"},
+		"guard":{"hair":Color("77736b"),"pants":Color("51473d"),"accent":Color("d5a74c"),"hair_style":"cap","prop":"keys"},
+		"canteen":{"hair":Color("3e2826"),"pants":Color("5d4641"),"accent":Color("f0d79a"),"hair_style":"scarf","prop":"tray"},
+		"arman":{"hair":Color("392c27"),"pants":Color("374c5b"),"accent":Color("e1b64a"),"hair_style":"styled","prop":"phone"},
+		"sara":{"hair":Color("342c2a"),"pants":Color("41464e"),"accent":Color("d2a4a0"),"hair_style":"scarf","prop":"notebook"},
+		"niloufar":{"hair":Color("28272b"),"pants":Color("3a414b"),"accent":Color("b491c1"),"hair_style":"scarf","prop":"sketchbook"},
+		"mehrdad":{"hair":Color("352d29"),"pants":Color("3d4851"),"accent":Color("d1ae55"),"hair_style":"neat","prop":"badge"},
+		"kamyar":{"hair":Color("262328"),"pants":Color("343238"),"accent":Color("b35349"),"hair_style":"messy","prop":"hands"},
+		"parsa":{"hair":Color("46372d"),"pants":Color("394454"),"accent":Color("81a5bd"),"hair_style":"neat","prop":"book"},
+		"malika":{"hair":Color("292329"),"pants":Color("4a3d4b"),"accent":Color("e0ba5d"),"hair_style":"scarf","prop":"badge"}
+	}
+	var result: Dictionary = palette.get(id, {})
+	result["coat"] = default_coat
+	return result
+
+func _make_character(parent: Node3D, look: Dictionary) -> void:
+	var coat: Color = look.get("coat", Color("477c8d"))
+	var pants: Color = look.get("pants", Color("384452"))
+	var skin := Color("d9ad8f")
+	# Tapered low-poly clothing, separate limbs, and polished shoes make each figure legible at a distance.
+	_add_person_capsule(parent, "trousers", 0.145, 0.72, Vector3(-0.18,0.49,0), pants)
+	_add_person_capsule(parent, "trousers", 0.145, 0.72, Vector3(0.18,0.49,0), pants)
+	_add_person_box(parent, "left shoe", Vector3(0.26,0.13,0.34), Vector3(-0.19,0.12,0.07), Color("292b32"))
+	_add_person_box(parent, "right shoe", Vector3(0.26,0.13,0.34), Vector3(0.19,0.12,0.07), Color("292b32"))
+	_add_person_box(parent, "jacket", Vector3(0.72,0.87,0.42), Vector3(0,1.18,0), coat)
+	_add_person_box(parent, "shirt collar", Vector3(0.23,0.28,0.035), Vector3(0,1.58,0.225), Color("f1e6d0"))
+	_add_person_box(parent, "tie or scarf", Vector3(0.11,0.48,0.055), Vector3(0,1.30,0.24), look.get("accent",Color("d0a85b")))
+	_add_person_capsule(parent, "neck", 0.12, 0.24, Vector3(0,1.68,0), skin)
+	_add_person_capsule(parent, "left sleeve", 0.13, 0.72, Vector3(-0.47,1.18,0), coat)
+	_add_person_capsule(parent, "right sleeve", 0.13, 0.72, Vector3(0.47,1.18,0), coat)
+	_add_person_sphere(parent, "left hand", 0.13, Vector3(-0.48,0.78,0.08), skin)
+	_add_person_sphere(parent, "right hand", 0.13, Vector3(0.48,0.78,0.08), skin)
+	_add_person_sphere(parent, "face", 0.255, Vector3(0,1.96,0.015), skin)
+	# Hair/headwear silhouettes are intentionally distinct and color-coded per named character.
+	var hair: Color = look.get("hair",Color("302a29"))
+	var style: String = str(look.get("hair_style","neat"))
+	_add_person_sphere(parent, "hair cap", 0.265, Vector3(0,2.09,0.005), hair)
+	if style == "scarf":
+		_add_person_sphere(parent, "head scarf", 0.276, Vector3(0,2.00,-0.025), look.get("accent",coat))
+		_add_person_box(parent, "scarf drape", Vector3(0.52,0.48,0.12), Vector3(0,1.79,-0.12), look.get("accent",coat))
+	elif style == "cap":
+		_add_person_box(parent, "guard cap", Vector3(0.55,0.16,0.50), Vector3(0,2.23,0), coat.darkened(0.18))
+		_add_person_box(parent, "cap brim", Vector3(0.58,0.055,0.32), Vector3(0,2.17,0.16), look.get("accent",Color("d0a85b")))
+	elif style in ["messy","artist"]:
+		for tuft in [Vector3(-0.14,2.26,0.02),Vector3(0.02,2.30,0),Vector3(0.15,2.24,-0.02)]:
+			_add_person_sphere(parent, "hair tuft", 0.11, tuft, hair)
+	else:
+		_add_person_box(parent, "side hair left", Vector3(0.12,0.35,0.18), Vector3(-0.22,1.94,0), hair)
+		_add_person_box(parent, "side hair right", Vector3(0.12,0.35,0.18), Vector3(0.22,1.94,0), hair)
+	# Eyes, brows, nose and a small smile face the courtyard path and the player.
+	_add_person_sphere(parent, "left eye", 0.035, Vector3(-0.09,1.99,0.24), Color("332c2a"))
+	_add_person_sphere(parent, "right eye", 0.035, Vector3(0.09,1.99,0.24), Color("332c2a"))
+	_add_person_box(parent, "left brow", Vector3(0.10,0.025,0.035), Vector3(-0.09,2.07,0.25), hair.darkened(0.12))
+	_add_person_box(parent, "right brow", Vector3(0.10,0.025,0.035), Vector3(0.09,2.07,0.25), hair.darkened(0.12))
+	_add_person_sphere(parent, "nose", 0.045, Vector3(0,1.92,0.27), skin.lightened(0.08))
+	_add_person_box(parent, "smile", Vector3(0.09,0.018,0.025), Vector3(0,1.85,0.25), Color("8e514c"))
+	var prop := str(look.get("prop",""))
+	if prop in ["portfolio","clipboard","book","notebook","sketchbook"]:
+		_add_person_box(parent, "school folder", Vector3(0.35,0.48,0.12), Vector3(-0.52,1.12,0.20), look.get("accent",Color("d0a85b")))
+		_add_person_box(parent, "folder label", Vector3(0.20,0.035,0.02), Vector3(-0.52,1.20,0.27), Color("f0e5cd"))
+	elif prop == "mug":
+		_add_person_cylinder(parent, "tea glass", 0.085, 0.20, Vector3(0.50,0.91,0.16), Color("cf9b58"))
+	elif prop == "tray":
+		_add_person_box(parent, "canteen tray", Vector3(0.50,0.08,0.34), Vector3(0.47,0.91,0.19), Color("d3c5a0"))
+	elif prop == "brush":
+		_add_person_box(parent, "paintbrush", Vector3(0.045,0.58,0.045), Vector3(0.51,1.08,0.18), Color("805c3e"))
+		_add_person_sphere(parent, "brush tip", 0.06, Vector3(0.51,1.39,0.18), Color("df7157"))
+	elif prop == "keys":
+		_add_person_sphere(parent, "key ring", 0.10, Vector3(0.48,0.74,0.16), look.get("accent",Color("d0a85b")))
+	elif prop == "badge":
+		_add_person_sphere(parent, "council badge", 0.09, Vector3(0.22,1.43,0.23), look.get("accent",Color("d0a85b")))
+	elif prop == "phone":
+		_add_person_box(parent, "phone", Vector3(0.13,0.25,0.035), Vector3(0.48,1.02,0.22), Color("28333c"))
+	# A small backpack gives students another readable silhouette; staff carry their trade tools instead.
+	if prop in ["phone","notebook","sketchbook","badge"]:
+		_add_person_box(parent, "backpack", Vector3(0.52,0.62,0.20), Vector3(0,1.08,-0.29), look.get("accent",Color("d0a85b")))
+
+func _add_person_box(parent: Node3D, name: String, size: Vector3, pos: Vector3, color: Color) -> void:
+	var instance := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	instance.name = name
+	instance.mesh = mesh
+	instance.position = pos
+	instance.material_override = _material(color)
+	parent.add_child(instance)
+
+func _add_person_sphere(parent: Node3D, name: String, radius: float, pos: Vector3, color: Color) -> void:
+	var instance := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = radius
+	mesh.height = radius * 2.0
+	mesh.radial_segments = 10
+	mesh.rings = 6
+	instance.name = name
+	instance.mesh = mesh
+	instance.position = pos
+	instance.material_override = _material(color)
+	parent.add_child(instance)
+
+func _add_person_capsule(parent: Node3D, name: String, radius: float, height: float, pos: Vector3, color: Color) -> void:
+	var instance := MeshInstance3D.new()
+	var mesh := CapsuleMesh.new()
+	mesh.radius = radius
+	mesh.height = height
+	mesh.radial_segments = 8
+	mesh.rings = 4
+	instance.name = name
+	instance.mesh = mesh
+	instance.position = pos
+	instance.material_override = _material(color)
+	parent.add_child(instance)
+
+func _add_person_cylinder(parent: Node3D, name: String, radius: float, height: float, pos: Vector3, color: Color) -> void:
+	var instance := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = height
+	instance.name = name
+	instance.mesh = mesh
+	instance.position = pos
+	instance.material_override = _material(color)
+	parent.add_child(instance)
 
 func _add_billboard_name(parent: Node3D, text: String) -> void:
 	var label := Label3D.new()
@@ -191,14 +311,9 @@ func _build_player() -> void:
 	collision.shape = capsule
 	collision.position.y = 0.85
 	player.add_child(collision)
-	var mesh := MeshInstance3D.new()
-	var model := CapsuleMesh.new()
-	model.radius = 0.36
-	model.height = 1.65
-	mesh.mesh = model
-	mesh.position.y = 0.85
-	mesh.material_override = _material(Color("4bd0d9"))
-	player.add_child(mesh)
+	var outfit := {"coat":Color("367e8b"),"pants":Color("344450"),"hair":Color("302a29"),"accent":Color("e3b94f"),"hair_style":"messy","prop":"sketchbook"}
+	_make_character(player, outfit)
+	_add_billboard_name(player, "من")
 	add_child(player)
 	camera = Camera3D.new()
 	camera.position = Vector3(0, 11, 13)
@@ -276,6 +391,12 @@ func _add_direction(parent: Node, text: String, direction: String) -> void:
 	parent.add_child(button)
 
 func _process(delta: float) -> void:
+	elapsed += delta
+	for i in range(npc_models.size()):
+		var model := npc_models[i]
+		if is_instance_valid(model):
+			model.position.y = sin(elapsed * 1.7 + float(i) * 0.8) * 0.025
+			model.rotation.y = sin(elapsed * 0.7 + float(i)) * 0.045
 	if not is_instance_valid(player): return
 	var direction := Input.get_vector("ui_left","ui_right","ui_up","ui_down")
 	if touch_directions.left: direction.x -= 1

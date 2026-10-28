@@ -60,7 +60,7 @@ jobs:
           export/android/java_sdk_path = "$JAVA_HOME"
           export/android/debug_keystore = "$RUNNER_TEMP/debug.keystore"
           export/android/debug_keystore_user = "androiddebugkey"
-          export/android/debug_keystore_password = "android"
+          export/android/debug_keystore_pass = "android"
           EOF
       - name: Export signed Android APK
         run: |

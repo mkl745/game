@@ -53,7 +53,8 @@ jobs:
           cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
           [gd_resource type="EditorSettings" format=3]
           [resource]
-          android/android_sdk_path = "$ANDROID_HOME"
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
           export/android/debug_keystore = "$RUNNER_TEMP/debug.keystore"
           export/android/debug_keystore_user = "androiddebugkey"
           export/android/debug_keystore_password = "android"

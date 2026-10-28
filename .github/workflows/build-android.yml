@@ -50,6 +50,7 @@ jobs:
           PY
           godot --headless --path . --editor --quit
           godot --headless --path . --quit-after 3
+          godot --headless --path . --install-android-build-template
       - name: Configure Android export settings
         run: |
           mkdir -p "$HOME/.config/godot"

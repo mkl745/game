@@ -5,6 +5,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  ANDROID_HOME: /usr/local/lib/android/sdk
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,11 +23,10 @@ jobs:
           mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}
           unzip -q Godot_v${GODOT_VERSION}_export_templates.tpz -d /tmp/templates
           cp -R /tmp/templates/templates/. ~/.local/share/godot/export_templates/${GODOT_VERSION}/
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
       - name: Install Android SDK packages and signing key
         run: |
           sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0' 'cmdline-tools;latest'

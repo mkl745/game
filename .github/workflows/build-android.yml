@@ -1,0 +1,67 @@
+name: Build Android APK
+on:
+  push:
+    branches: [main, 'arena/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot and export templates
+        run: |
+          GODOT_VERSION=4.3-stable
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip
+          unzip -q Godot_v${GODOT_VERSION}_linux.x86_64.zip -d /tmp/godot
+          sudo install /tmp/godot/Godot_v${GODOT_VERSION}_linux.x86_64 /usr/local/bin/godot
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz
+          mkdir -p ~/.local/share/godot/export_templates/${GODOT_VERSION}
+          unzip -q Godot_v${GODOT_VERSION}_export_templates.tpz -d /tmp/templates
+          cp -R /tmp/templates/templates/. ~/.local/share/godot/export_templates/${GODOT_VERSION}/
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK packages and signing key
+        run: |
+          sdkmanager 'platform-tools' 'platforms;android-35' 'build-tools;35.0.0' 'cmdline-tools;latest'
+          keytool -genkeypair -v -keystore "$RUNNER_TEMP/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
+      - name: Validate data and load project headlessly
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          data = {p.stem: json.loads(p.read_text()) for p in pathlib.Path('data').glob('*.json')}
+          assert len(data['characters']) >= 14
+          assert len(data['events']) >= 10
+          for person in data['characters'].values():
+              assert person['name'] and person['likes'] and person['schedule']
+          for event in data['events']:
+              assert event['title'] and len(event['choices']) >= 2
+          print('Data sanity checks passed')
+          PY
+          godot --headless --path . --editor --quit
+          godot --headless --path . --quit-after 3
+      - name: Configure Android export settings
+        run: |
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          android/android_sdk_path = "$ANDROID_HOME"
+          export/android/debug_keystore = "$RUNNER_TEMP/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_password = "android"
+          EOF
+      - name: Export signed Android APK
+        run: |
+          mkdir -p build
+          sed -i "s/version\/code=1/version\/code=${GITHUB_RUN_NUMBER}/" export_presets.cfg
+          godot --headless --path . --export-debug Android build/teachers-pet.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: teachers-pet-apk
+          path: build/teachers-pet.apk
+          if-no-files-found: error

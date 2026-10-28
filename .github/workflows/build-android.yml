@@ -23,7 +23,9 @@ jobs:
           TEMPLATE_VERSION=${GODOT_VERSION/-/.}
           mkdir -p ~/.local/share/godot/export_templates/${TEMPLATE_VERSION}
           unzip -q Godot_v${GODOT_VERSION}_export_templates.tpz -d /tmp/templates
-          cp -R /tmp/templates/templates/. ~/.local/share/godot/export_templates/${GODOT_VERSION}/
+          cp -R /tmp/templates/templates/. ~/.local/share/godot/export_templates/${TEMPLATE_VERSION}/
+          test -f ~/.local/share/godot/export_templates/${TEMPLATE_VERSION}/android_debug.apk
+          test -f ~/.local/share/godot/export_templates/${TEMPLATE_VERSION}/android_release.apk
       - uses: actions/setup-java@v5
         with:
           distribution: temurin

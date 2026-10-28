@@ -71,7 +71,7 @@ jobs:
           godot --headless --path . --install-android-build-template --verbose --export-debug Android build/teachers-pet.apk 2>&1 | tee build/export.log
           export_status=${PIPESTATUS[0]}
           if [ "$export_status" -ne 0 ]; then
-            detail=$(grep -Ei 'error|failed|warning|exception|not found' build/export.log | tail -n 40 | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
+            detail=$(grep -Ei 'error|failed|warning|exception|not found|missing|must be|valid android|sdk path|keystore|template' build/export.log | tail -n 80 | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')
             echo "::error title=Godot Android export::$detail"
             exit "$export_status"
           fi

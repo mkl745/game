@@ -12,6 +12,8 @@ var current_person := "principal"
 var joy := Vector2.ZERO
 var elapsed := 0.0
 var npc_models: Array[Node3D] = []
+var player_limbs: Dictionary = {}
+var walk_phase := 0.0
 var touch_directions := {"left": false, "right": false, "up": false, "down": false}
 var people := [
 	{"name":"دکتر صادقی", "id":"principal", "pos":Vector3(17,0,7), "color":Color("8f5576")},
@@ -98,15 +100,68 @@ func _add_box(label: String, pos: Vector3, size: Vector3, color: Color) -> void:
 	add_child(body)
 
 func _add_building(label: String, pos: Vector3, size: Vector3, color: Color, rooms: Array) -> void:
-	_add_box(label, pos, size, color)
-	# Slightly raised, dark window bands and bright door frames read as real façades.
-	var sign_pos := Vector3(pos.x, pos.y + size.y * 0.72, pos.z + size.z * 0.51)
-	_add_box("سردر", sign_pos, Vector3(size.x * 0.74, 0.42, 0.12), Color("574c47"))
-	_add_label("   •   ".join(rooms), sign_pos + Vector3(0,0.28,0.12), 0.22)
+	# The wings are open-roof, walk-in shells with genuine doorway gaps, partitions, and furnishings.
+	var floor_y := 0.10
+	var wall_h := size.y
+	var wall_t := 0.32
+	var half_x := size.x * 0.5
+	var half_z := size.z * 0.5
+	_add_box(label + " floor", Vector3(pos.x,floor_y,pos.z), Vector3(size.x,0.16,size.z), color.lightened(0.13))
+	# Every wing has a real courtyard-facing entrance; the workshop/gate face north, other wings south.
+	_add_box(label + " west wall", Vector3(pos.x-half_x,wall_h*0.5,pos.z), Vector3(wall_t,wall_h,size.z), color.darkened(0.08))
+	_add_box(label + " east wall", Vector3(pos.x+half_x,wall_h*0.5,pos.z), Vector3(wall_t,wall_h,size.z), color.darkened(0.08))
+	var door_w := 2.1
+	var side_w := (size.x-door_w)*0.5
+	var door_north := label.contains("کارگاه") or label.contains("ورودی")
+	var front_z := pos.z + half_z if not door_north else pos.z-half_z
+	var rear_z := pos.z-half_z if not door_north else pos.z+half_z
+	_add_box(label + " rear wall", Vector3(pos.x,wall_h*0.5,rear_z), Vector3(size.x,wall_h,wall_t), color)
+	_add_box(label + " facade left", Vector3(pos.x-(door_w+side_w)*0.5,wall_h*0.5,front_z), Vector3(side_w,wall_h,wall_t), color)
+	_add_box(label + " facade right", Vector3(pos.x+(door_w+side_w)*0.5,wall_h*0.5,front_z), Vector3(side_w,wall_h,wall_t), color)
+	_add_box(label + " lintel", Vector3(pos.x,wall_h-0.22,front_z), Vector3(door_w,0.44,wall_t), color)
+	var face_sign := 1.0 if not door_north else -1.0
+	# The roofline is a shallow decorative cornice, not a roof; the camera can see the furnished rooms.
+	_add_box(label + " cornice", Vector3(pos.x,wall_h+0.08,pos.z), Vector3(size.x+0.25,0.16,size.z+0.25), color.darkened(0.15))
+	_add_box(label + " doorway left", Vector3(pos.x-door_w*0.5+0.10,1.0,front_z+face_sign*0.03), Vector3(0.16,2.0,0.10), Color("604334"))
+	_add_box(label + " doorway right", Vector3(pos.x+door_w*0.5-0.10,1.0,front_z+face_sign*0.03), Vector3(0.16,2.0,0.10), Color("604334"))
+	_add_box(label + " sign backing", Vector3(pos.x,wall_h-0.40,front_z+face_sign*0.22), Vector3(size.x*0.58,0.54,0.10), Color("57483e"))
+	_add_label("  •  ".join(rooms), Vector3(pos.x,wall_h-0.22,front_z+face_sign*0.31), 0.20)
 	for i in range(3):
-		var wx := pos.x - size.x * 0.3 + float(i) * size.x * 0.3
-		_add_box("پنجره", Vector3(wx,pos.y + 0.6,pos.z + size.z * 0.51), Vector3(1.4,0.95,0.1), Color("86a8aa"))
-	_add_box("در", Vector3(pos.x,pos.y-0.4,pos.z + size.z * 0.51), Vector3(1.4,2.3,0.15), Color("684b3b"))
+		var wx := pos.x-half_x*0.68+float(i)*half_x*0.68
+		if absf(wx-pos.x) < door_w*0.6: continue
+		_add_box(label+" window",Vector3(wx,1.75,front_z+face_sign*0.05),Vector3(1.35,0.90,0.11),Color("87b5b8"))
+		_add_box(label+" window sill",Vector3(wx,1.25,front_z+face_sign*0.10),Vector3(1.52,0.12,0.18),Color("eee1c7"))
+	# Two broad interior dividers make separate classrooms/work areas. A gap remains as an internal doorway.
+	if rooms.size() > 1:
+		for divider in range(1,rooms.size()):
+			var dx := pos.x-half_x+(size.x/rooms.size())*divider
+			var room_gap := 1.35
+			var section := (size.z-room_gap)*0.5
+			_add_box(label+" room divider A",Vector3(dx,1.55,pos.z-half_z+section*0.5),Vector3(wall_t,3.1,section),color.darkened(0.04))
+			_add_box(label+" room divider B",Vector3(dx,1.55,pos.z+half_z-section*0.5),Vector3(wall_t,3.1,section),color.darkened(0.04))
+	# Functional-looking workshop/classroom details are made from meshes, with room to walk between them.
+	if label.contains("کلاس"):
+		_add_box("تختهٔ گچی",Vector3(pos.x,1.95,pos.z-half_z+0.22),Vector3(5.0,1.35,0.16),Color("345c53"))
+		_add_box("تخته قاب",Vector3(pos.x,2.68,pos.z-half_z+0.32),Vector3(5.2,0.09,0.18),Color("865f3e"))
+		for row in range(2):
+			for col in range(3):
+				var desk := Vector3(pos.x-5.0+float(col)*4.3,0,pos.z-1.0+float(row)*2.3)
+				_add_box("میز هنرجو",desk+Vector3(0,0.85,0),Vector3(1.45,0.14,0.78),Color("a77b55"))
+				_add_box("پایه میز",desk+Vector3(0,0.43,0),Vector3(0.10,0.76,0.10),Color("51473f"))
+	elif label.contains("کارگاه"):
+		for i in range(3):
+			var table := Vector3(pos.x-5.0+float(i)*5.0,0,pos.z)
+			_add_box("میز کارگاه",table+Vector3(0,0.95,0),Vector3(2.7,0.18,1.5),Color("936e4c"))
+			_add_cylinder("کاسه سفالی",table+Vector3(0,1.28,0),0.48,0.48,Color("bc795a"))
+		_add_box("قفسه رنگ",Vector3(pos.x+half_x-0.55,1.45,pos.z),Vector3(0.8,2.7,3.0),Color("79604a"))
+	elif label.contains("دفتر"):
+		for i in range(2):
+			var desk := Vector3(pos.x-3.0+float(i)*6.0,0,pos.z+1.4)
+			_add_box("میز اداری",desk+Vector3(0,0.86,0),Vector3(2.4,0.16,1.15),Color("805b43"))
+			_add_box("کمد پرونده",desk+Vector3(0,1.55,-2.7),Vector3(1.7,2.9,0.55),Color("8e755e"))
+	elif label.contains("ورودی"):
+		_add_box("پیشخوان نگهبانی",Vector3(pos.x,0.8,pos.z+1.2),Vector3(3.2,1.4,0.7),Color("87684c"))
+		_add_box("جاکفشی",Vector3(pos.x+3.4,0.8,pos.z-1.5),Vector3(1.5,1.4,0.7),Color("705541"))
 
 func _add_label(text: String, pos: Vector3, size: float) -> void:
 	var label := Label3D.new()
@@ -125,7 +180,8 @@ func _add_npc(person: Dictionary) -> void:
 	root.position = person.pos
 	add_child(root)
 	var look := _character_look(str(person.id), person.color)
-	_make_character(root, look)
+	var limbs := _make_character(root, look)
+	root.set_meta("limbs", limbs)
 	_add_billboard_name(root, str(person.name))
 	npc_models.append(root)
 
@@ -150,21 +206,21 @@ func _character_look(id: String, default_coat: Color) -> Dictionary:
 	result["coat"] = default_coat
 	return result
 
-func _make_character(parent: Node3D, look: Dictionary) -> void:
+func _make_character(parent: Node3D, look: Dictionary) -> Dictionary:
 	var coat: Color = look.get("coat", Color("477c8d"))
 	var pants: Color = look.get("pants", Color("384452"))
 	var skin := Color("d9ad8f")
 	# Tapered low-poly clothing, separate limbs, and polished shoes make each figure legible at a distance.
-	_add_person_capsule(parent, "trousers", 0.145, 0.72, Vector3(-0.18,0.49,0), pants)
-	_add_person_capsule(parent, "trousers", 0.145, 0.72, Vector3(0.18,0.49,0), pants)
+	var left_leg := _add_person_capsule(parent, "left trouser", 0.145, 0.72, Vector3(-0.18,0.49,0), pants)
+	var right_leg := _add_person_capsule(parent, "right trouser", 0.145, 0.72, Vector3(0.18,0.49,0), pants)
 	_add_person_box(parent, "left shoe", Vector3(0.26,0.13,0.34), Vector3(-0.19,0.12,0.07), Color("292b32"))
 	_add_person_box(parent, "right shoe", Vector3(0.26,0.13,0.34), Vector3(0.19,0.12,0.07), Color("292b32"))
 	_add_person_box(parent, "jacket", Vector3(0.72,0.87,0.42), Vector3(0,1.18,0), coat)
 	_add_person_box(parent, "shirt collar", Vector3(0.23,0.28,0.035), Vector3(0,1.58,0.225), Color("f1e6d0"))
 	_add_person_box(parent, "tie or scarf", Vector3(0.11,0.48,0.055), Vector3(0,1.30,0.24), look.get("accent",Color("d0a85b")))
 	_add_person_capsule(parent, "neck", 0.12, 0.24, Vector3(0,1.68,0), skin)
-	_add_person_capsule(parent, "left sleeve", 0.13, 0.72, Vector3(-0.47,1.18,0), coat)
-	_add_person_capsule(parent, "right sleeve", 0.13, 0.72, Vector3(0.47,1.18,0), coat)
+	var left_arm := _add_person_capsule(parent, "left sleeve", 0.13, 0.72, Vector3(-0.47,1.18,0), coat)
+	var right_arm := _add_person_capsule(parent, "right sleeve", 0.13, 0.72, Vector3(0.47,1.18,0), coat)
 	_add_person_sphere(parent, "left hand", 0.13, Vector3(-0.48,0.78,0.08), skin)
 	_add_person_sphere(parent, "right hand", 0.13, Vector3(0.48,0.78,0.08), skin)
 	_add_person_sphere(parent, "face", 0.255, Vector3(0,1.96,0.015), skin)
@@ -173,8 +229,8 @@ func _make_character(parent: Node3D, look: Dictionary) -> void:
 	var style: String = str(look.get("hair_style","neat"))
 	_add_person_sphere(parent, "hair cap", 0.265, Vector3(0,2.09,0.005), hair)
 	if style == "scarf":
-		_add_person_sphere(parent, "head scarf", 0.276, Vector3(0,2.00,-0.025), look.get("accent",coat))
-		_add_person_box(parent, "scarf drape", Vector3(0.52,0.48,0.12), Vector3(0,1.79,-0.12), look.get("accent",coat))
+		_add_person_sphere(parent, "head scarf", 0.276, Vector3(0,2.00,-0.18), look.get("accent",coat))
+		_add_person_box(parent, "scarf drape", Vector3(0.52,0.48,0.12), Vector3(0,1.79,-0.19), look.get("accent",coat))
 	elif style == "cap":
 		_add_person_box(parent, "guard cap", Vector3(0.55,0.16,0.50), Vector3(0,2.23,0), coat.darkened(0.18))
 		_add_person_box(parent, "cap brim", Vector3(0.58,0.055,0.32), Vector3(0,2.17,0.16), look.get("accent",Color("d0a85b")))
@@ -211,6 +267,7 @@ func _make_character(parent: Node3D, look: Dictionary) -> void:
 	# A small backpack gives students another readable silhouette; staff carry their trade tools instead.
 	if prop in ["phone","notebook","sketchbook","badge"]:
 		_add_person_box(parent, "backpack", Vector3(0.52,0.62,0.20), Vector3(0,1.08,-0.29), look.get("accent",Color("d0a85b")))
+	return {"legs":[left_leg,right_leg], "arms":[left_arm,right_arm]}
 
 func _add_person_box(parent: Node3D, name: String, size: Vector3, pos: Vector3, color: Color) -> void:
 	var instance := MeshInstance3D.new()
@@ -235,7 +292,7 @@ func _add_person_sphere(parent: Node3D, name: String, radius: float, pos: Vector
 	instance.material_override = _material(color)
 	parent.add_child(instance)
 
-func _add_person_capsule(parent: Node3D, name: String, radius: float, height: float, pos: Vector3, color: Color) -> void:
+func _add_person_capsule(parent: Node3D, name: String, radius: float, height: float, pos: Vector3, color: Color) -> MeshInstance3D:
 	var instance := MeshInstance3D.new()
 	var mesh := CapsuleMesh.new()
 	mesh.radius = radius
@@ -247,6 +304,7 @@ func _add_person_capsule(parent: Node3D, name: String, radius: float, height: fl
 	instance.position = pos
 	instance.material_override = _material(color)
 	parent.add_child(instance)
+	return instance
 
 func _add_person_cylinder(parent: Node3D, name: String, radius: float, height: float, pos: Vector3, color: Color) -> void:
 	var instance := MeshInstance3D.new()
@@ -312,7 +370,7 @@ func _build_player() -> void:
 	collision.position.y = 0.85
 	player.add_child(collision)
 	var outfit := {"coat":Color("367e8b"),"pants":Color("344450"),"hair":Color("302a29"),"accent":Color("e3b94f"),"hair_style":"messy","prop":"sketchbook"}
-	_make_character(player, outfit)
+	player_limbs = _make_character(player, outfit)
 	_add_billboard_name(player, "من")
 	add_child(player)
 	camera = Camera3D.new()
@@ -408,6 +466,18 @@ func _process(delta: float) -> void:
 	player.velocity.z = direction.y * MOVE_SPEED
 	player.velocity.y -= 22.0 * delta
 	player.move_and_slide()
+	if direction.length() > 0.08:
+		walk_phase += delta * 11.5
+		player.rotation.y = atan2(direction.x, direction.y)
+	var leg_swing := sin(walk_phase) * 0.38 if direction.length() > 0.08 else 0.0
+	var legs: Array = player_limbs.get("legs", [])
+	var arms: Array = player_limbs.get("arms", [])
+	if legs.size() == 2:
+		legs[0].rotation.z = move_toward(legs[0].rotation.z, leg_swing, delta * 5.0)
+		legs[1].rotation.z = move_toward(legs[1].rotation.z, -leg_swing, delta * 5.0)
+	if arms.size() == 2:
+		arms[0].rotation.z = move_toward(arms[0].rotation.z, -leg_swing * 0.72, delta * 5.0)
+		arms[1].rotation.z = move_toward(arms[1].rotation.z, leg_swing * 0.72, delta * 5.0)
 	player.position.x = clampf(player.position.x, -23, 23)
 	player.position.z = clampf(player.position.z, -15, 15)
 	var target := player.position + Vector3(0,10,12)
